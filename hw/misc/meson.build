@@ -112,6 +112,8 @@ softmmu_ss.add(when: 'CONFIG_ASPEED_SOC', if_true: files(
 
 softmmu_ss.add(when: 'CONFIG_MSF2', if_true: files('msf2-sysreg.c'))
 softmmu_ss.add(when: 'CONFIG_NRF51_SOC', if_true: files('nrf51_rng.c'))
+softmmu_ss.add(when: 'CONFIG_NRF52840_SOC', if_true: files('nrf52840_rng.c'))
+softmmu_ss.add(when: 'CONFIG_NRF52840_SOC', if_true: files('nrf52840_clock.c'))
 
 softmmu_ss.add(when: 'CONFIG_GRLIB', if_true: files('grlib_ahb_apb_pnp.c'))
 
