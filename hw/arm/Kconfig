@@ -491,6 +491,16 @@ config NRF51_SOC
     select ARM_V7M
     select UNIMP
 
+config NRF52840DK
+    bool
+    select NRF52840_SOC
+
+config NRF52840_SOC
+    bool
+    select ARM_V7M
+    select UNIMP
+
+
 config EMCRAFT_SF2
     bool
     select MSF2
