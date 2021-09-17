@@ -105,6 +105,35 @@ static void nrf52840_soc_realize(DeviceState *dev_soc, Error **errp)
     // /* Pass all GPIOs to the SOC layer so they are available to the board */
     // qdev_pass_gpios(DEVICE(&s->gpio), dev_soc, NULL);
 
+    /* RTC */
+    for (i = 0; i < NRF52840_NUM_RTCS; i++) {
+        if (!object_property_set_uint(OBJECT(&s->rtc[i]), "id", i, errp)) {
+            return;
+        }
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->rtc[i]), errp)) {
+            return;
+        }
+
+        switch (i) {
+        case 0:
+            base_addr = NRF52840_RTC0_BASE;
+            break;
+        case 1:
+            base_addr = NRF52840_RTC1_BASE;
+            break;
+        case 2:
+            base_addr = NRF52840_RTC2_BASE;
+            break;
+        default:
+            qemu_log_mask(LOG_GUEST_ERROR, "%s: bad RTC number %d\n", __func__, i);
+        }
+
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->rtc[i]), 0, base_addr);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->rtc[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->cpu),
+                                            BASE_TO_IRQ(base_addr)));
+    }
+
     /* TIMER */
     for (i = 0; i < NRF52840_NUM_TIMERS; i++) {
         if (!object_property_set_uint(OBJECT(&s->timer[i]), "id", i, errp)) {
@@ -167,10 +196,14 @@ static void nrf52840_soc_init(Object *obj)
 
     // object_initialize_child(obj, "gpio", &s->gpio, TYPE_NRF52840_GPIO);
 
+    for (i = 0; i < NRF52840_NUM_RTCS; i++) {
+        object_initialize_child(obj, "rtc[*]", &s->rtc[i],
+                                TYPE_NRF52840_RTC);
+    }
+
     for (i = 0; i < NRF52840_NUM_TIMERS; i++) {
         object_initialize_child(obj, "timer[*]", &s->timer[i],
                                 TYPE_NRF52840_TIMER);
-
     }
 
     object_initialize_child(obj, "clock", &s->clock, TYPE_NRF52840_CLOCK);

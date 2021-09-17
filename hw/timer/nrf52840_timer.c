@@ -292,7 +292,7 @@ static void nrf52840_timer_write(void *opaque, hwaddr offset,
     update_irq(s);
 }
 
-static const MemoryRegionOps rng_ops = {
+static const MemoryRegionOps timer_ops = {
     .read =  nrf52840_timer_read,
     .write = nrf52840_timer_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
@@ -305,7 +305,7 @@ static void nrf52840_timer_init(Object *obj)
     NRF52840TimerState *s = NRF52840_TIMER(obj);
     SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
 
-    memory_region_init_io(&s->iomem, obj, &rng_ops, s,
+    memory_region_init_io(&s->iomem, obj, &timer_ops, s,
                           TYPE_NRF52840_TIMER, NRF52840_PERIPHERAL_SIZE);
     sysbus_init_mmio(sbd, &s->iomem);
     sysbus_init_irq(sbd, &s->irq);

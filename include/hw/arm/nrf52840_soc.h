@@ -11,6 +11,7 @@
 #include "hw/misc/nrf52840_rng.h"
 //#include "hw/gpio/nrf52840_gpio.h"
 #include "hw/nvram/nrf52840_nvm.h"
+#include "hw/timer/nrf52840_rtc.h"
 #include "hw/timer/nrf52840_timer.h"
 #include "hw/misc/nrf52840_clock.h"
 #include "qom/object.h"
@@ -19,6 +20,7 @@
 OBJECT_DECLARE_SIMPLE_TYPE(NRF52840State, NRF52840_SOC)
 
 #define NRF52840_NUM_TIMERS 3
+#define NRF52840_NUM_RTCS 3
 
 struct NRF52840State {
     /*< private >*/
@@ -32,6 +34,7 @@ struct NRF52840State {
     NRF52840NVMState nvm;
     //NRF52840GPIOState gpio;
     NRF52840TimerState timer[NRF52840_NUM_TIMERS];
+    NRF52840RTCState rtc[NRF52840_NUM_RTCS];
     NRF52840CLOCKState clock;
 
     MemoryRegion iomem;
