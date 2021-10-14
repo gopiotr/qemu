@@ -7,7 +7,7 @@
 #include "qemu/module.h"
 #include "hw/arm/nrf52840.h"
 #include "hw/irq.h"
-#include "hw/timer/nrf52840_rtc.h"
+#include "hw/rtc/nrf52840_rtc.h"
 #include "hw/qdev-properties.h"
 #include "migration/vmstate.h"
 

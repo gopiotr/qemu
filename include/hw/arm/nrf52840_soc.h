@@ -11,7 +11,7 @@
 #include "hw/misc/nrf52840_rng.h"
 //#include "hw/gpio/nrf52840_gpio.h"
 #include "hw/nvram/nrf52840_nvm.h"
-#include "hw/timer/nrf52840_rtc.h"
+#include "hw/rtc/nrf52840_rtc.h"
 #include "hw/timer/nrf52840_timer.h"
 #include "hw/misc/nrf52840_clock.h"
 #include "qom/object.h"
