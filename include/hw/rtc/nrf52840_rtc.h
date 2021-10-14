@@ -5,8 +5,11 @@
 #define NRF52840_RTC_H
 
 #include "hw/sysbus.h"
+#include "hw/ptimer.h"
+#include "hw/clock.h"
 #include "qemu/timer.h"
 #include "qom/object.h"
+
 #define TYPE_NRF52840_RTC "nrf52840_soc.rtc"
 OBJECT_DECLARE_SIMPLE_TYPE(NRF52840RTCState, NRF52840_RTC)
 
@@ -60,6 +63,7 @@ struct NRF52840RTCState {
     uint32_t inten;
     uint32_t prescaler;
 
+    ptimer_state *ptimer;
 };
 
 

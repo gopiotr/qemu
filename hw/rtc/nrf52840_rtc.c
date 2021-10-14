@@ -11,20 +11,28 @@
 #include "hw/qdev-properties.h"
 #include "migration/vmstate.h"
 
-#define TIMER_CLK_FREQ 32768LL
+#define RTC_CLK_FREQ 32768LL
 
 #define COUNTER_BITWIDTH 24
 
+static void nrf52840_rtc_tick(void *opaque)
+{
+    NRF52840RTCState *s = (NRF52840RTCState *)opaque;
+
+    ptimer_set_count(s->ptimer, 0xffffff);
+    ptimer_run(s->ptimer, 1);
+}
+
 static uint32_t ns_to_ticks(NRF52840RTCState *s, int64_t ns)
 {
-    uint32_t freq = TIMER_CLK_FREQ >> s->prescaler;
+    uint32_t freq = RTC_CLK_FREQ >> s->prescaler;
 
     return muldiv64(ns, freq, NANOSECONDS_PER_SECOND);
 }
 
 static int64_t ticks_to_ns(NRF52840RTCState *s, uint32_t ticks)
 {
-    uint32_t freq = TIMER_CLK_FREQ >> s->prescaler;
+    uint32_t freq = RTC_CLK_FREQ >> s->prescaler;
 
     return muldiv64(ticks, NANOSECONDS_PER_SECOND, freq);
 }
@@ -125,7 +133,8 @@ static uint64_t nrf52840_rtc_read(void *opaque, hwaddr offset, unsigned int size
         break;
     case NRF52840_RTC_REG_COUNTER:
         timer_expire(s);
-        r = s->counter;
+        //r = s->counter;
+        r = 0xffffff - ptimer_get_count(s->ptimer);
         break;
     case NRF52840_RTC_REG_PRESCALER:
         r = s->prescaler;
@@ -159,12 +168,21 @@ static void nrf52840_rtc_write(void *opaque, hwaddr offset,
             s->running = true;
             s->update_counter_ns = now - ticks_to_ns(s, s->counter);
             rearm_timer(s, now);
+
+            ptimer_transaction_begin(s->ptimer);
+            ptimer_set_count(s->ptimer, 0xffffff);
+            ptimer_run(s->ptimer, 1);
+            ptimer_transaction_commit(s->ptimer);
         }
         break;
     case NRF52840_RTC_TASK_STOP:
         if (value == NRF52840_TRIGGER_TASK) {
             s->running = false;
             timer_del(&s->timer);
+
+            ptimer_transaction_begin(s->ptimer);
+            ptimer_stop(s->ptimer);
+            ptimer_transaction_commit(s->ptimer);
         }
         break;
     case NRF52840_RTC_TASK_CLEAR:
@@ -174,6 +192,10 @@ static void nrf52840_rtc_write(void *opaque, hwaddr offset,
             if (s->running) {
                 rearm_timer(s, now);
             }
+
+            ptimer_transaction_begin(s->ptimer);
+            ptimer_set_count(s->ptimer, 0);
+            ptimer_transaction_commit(s->ptimer);
         }
         break;
     case NRF52840_RTC_EVENT_COMPARE_0 ... NRF52840_RTC_EVENT_COMPARE_3:
@@ -198,6 +220,10 @@ static void nrf52840_rtc_write(void *opaque, hwaddr offset,
                 __func__);
         }
         s->prescaler = value & NRF52840_RTC_REG_PRESCALER_MASK;
+
+        ptimer_transaction_begin(s->ptimer);
+        ptimer_set_freq(s->ptimer, RTC_CLK_FREQ >> s->prescaler);
+        ptimer_transaction_commit(s->ptimer);
         break;
     case NRF52840_RTC_REG_CC0 ... NRF52840_RTC_REG_CC3:
         if (s->running) {
@@ -228,19 +254,6 @@ static const MemoryRegionOps rtc_ops = {
     .impl.max_access_size = 4,
 };
 
-static void nrf52840_rtc_init(Object *obj)
-{
-    NRF52840RTCState *s = NRF52840_RTC(obj);
-    SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
-
-    memory_region_init_io(&s->iomem, obj, &rtc_ops, s,
-                          TYPE_NRF52840_RTC, NRF52840_PERIPHERAL_SIZE);
-    sysbus_init_mmio(sbd, &s->iomem);
-    sysbus_init_irq(sbd, &s->irq);
-
-    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, timer_expire, s);
-}
-
 static void nrf52840_rtc_reset(DeviceState *dev)
 {
     NRF52840RTCState *s = NRF52840_RTC(dev);
@@ -255,6 +268,12 @@ static void nrf52840_rtc_reset(DeviceState *dev)
 
     s->inten = 0x00;
     s->prescaler = 0x00;
+
+    ptimer_transaction_begin(s->ptimer);
+    ptimer_stop(s->ptimer);
+    ptimer_set_count(s->ptimer, 0);
+    ptimer_set_limit(s->ptimer, 0, 0);
+    ptimer_transaction_commit(s->ptimer);
 }
 
 static int nrf52840_rtc_post_load(void *opaque, int version_id)
@@ -265,6 +284,24 @@ static int nrf52840_rtc_post_load(void *opaque, int version_id)
         timer_expire(s);
     }
     return 0;
+}
+
+static void nrf52840_rtc_init(Object *obj)
+{
+    NRF52840RTCState *s = NRF52840_RTC(obj);
+    SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
+
+    memory_region_init_io(&s->iomem, obj, &rtc_ops, s,
+                          TYPE_NRF52840_RTC, NRF52840_PERIPHERAL_SIZE);
+    sysbus_init_mmio(sbd, &s->iomem);
+    sysbus_init_irq(sbd, &s->irq);
+
+    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, timer_expire, s);
+
+    s->ptimer = ptimer_init(nrf52840_rtc_tick, s, PTIMER_POLICY_DEFAULT);
+    ptimer_transaction_begin(s->ptimer);
+    ptimer_set_freq(s->ptimer, RTC_CLK_FREQ);
+    ptimer_transaction_commit(s->ptimer);
 }
 
 static const VMStateDescription vmstate_nrf52840_rtc = {
@@ -281,6 +318,7 @@ static const VMStateDescription vmstate_nrf52840_rtc = {
         VMSTATE_UINT32_ARRAY(cc, NRF52840RTCState, NRF52840_RTC_REG_COUNT),
         VMSTATE_UINT32(inten, NRF52840RTCState),
         VMSTATE_UINT32(prescaler, NRF52840RTCState),
+        VMSTATE_PTIMER(ptimer, NRF52840RTCState),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -294,8 +332,8 @@ static void nrf52840_rtc_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    dc->reset = nrf52840_rtc_reset;
     dc->vmsd = &vmstate_nrf52840_rtc;
+    dc->reset = nrf52840_rtc_reset;
     device_class_set_props(dc, nrf52840_rtcproperties);
 }
 
